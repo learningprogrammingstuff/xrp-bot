@@ -33,7 +33,10 @@ public class RobotContainer {
   private final XRPOnBoardIO m_onboardIO = new XRPOnBoardIO();
   private final Arm m_arm = new Arm();
 
-  // Assumes a gamepad plugged into channel 0
+  // Controller on channel 0 - can be a physical joystick or keyboard in simulation
+  // In simulation, keyboard WSAD controls are mapped via simgui-ds.json
+  // - W/S: Forward/Backward (axis 1)
+  // - A/D: Turn Left/Right (axis 2)
   private final Joystick m_controller = new Joystick(0);
 
   // Create SmartDashboard chooser for autonomous routines
@@ -88,9 +91,24 @@ public class RobotContainer {
   }
 
   /**
-   * Use this to pass the teleop command to the main {@link Robot} class.
+   * Creates the arcade drive command for teleop control.
+   * Supports both physical joysticks and keyboard WSAD controls in simulation.
+   * 
+   * <p>Physical Joystick (port 0):
+   * <ul>
+   *   <li>Axis 1 (Y-axis): Forward/Backward movement</li>
+   *   <li>Axis 2 (Z-axis or twist): Rotation</li>
+   * </ul>
+   * 
+   * <p>Keyboard Controls (in simulation via simgui-ds.json):
+   * <ul>
+   *   <li>W: Drive Forward</li>
+   *   <li>S: Drive Backward</li>
+   *   <li>A: Turn Left</li>
+   *   <li>D: Turn Right</li>
+   * </ul>
    *
-   * @return the command to run in teleop
+   * @return the arcade drive command
    */
   public Command getArcadeDriveCommand() {
     return new ArcadeDrive(
