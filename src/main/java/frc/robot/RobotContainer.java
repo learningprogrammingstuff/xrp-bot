@@ -20,6 +20,9 @@ import edu.wpi.first.wpilibj2.command.InstantCommand;
 import edu.wpi.first.wpilibj2.command.PrintCommand;
 import edu.wpi.first.wpilibj2.command.button.JoystickButton;
 import edu.wpi.first.wpilibj2.command.button.Trigger;
+import frc.robot.subsystems.Ultrasonic;
+import edu.wpi.first.wpilibj.xrp.XRPRangefinder;
+
 
 /**
  * This class is where the bulk of the robot should be declared. Since Command-based is a
@@ -32,6 +35,8 @@ public class RobotContainer {
   private final Drivetrain m_drivetrain = new Drivetrain();
   private final XRPOnBoardIO m_onboardIO = new XRPOnBoardIO();
   private final Arm m_arm = new Arm();
+  private final Ultrasonic m_ultrasonic = new Ultrasonic();
+
 
   // Assumes a gamepad plugged into channel 0
   private final Joystick m_controller = new Joystick(0);
