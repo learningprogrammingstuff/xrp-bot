@@ -6,6 +6,7 @@ package frc.robot.commands;
 
 import frc.robot.subsystems.Drivetrain;
 import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
+import edu.wpi.first.wpilibj2.command.WaitCommand;
 
 public class AutonomousDistance extends SequentialCommandGroup {
   /**
@@ -17,11 +18,20 @@ public class AutonomousDistance extends SequentialCommandGroup {
   public AutonomousDistance(Drivetrain drivetrain) {
     addCommands(
         new DriveDistance(0.8, 10, drivetrain),
-        new TurnDegrees(1, 90, drivetrain),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, 90, drivetrain),
+        new WaitCommand(0.5),
         new DriveDistance(0.8, 10, drivetrain),
-        new TurnDegrees(1, 90, drivetrain),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, 90, drivetrain),
+        new WaitCommand(0.5),
         new DriveDistance(0.8, 10, drivetrain),
-        new TurnDegrees(1, 90, drivetrain),
-        new DriveDistance(0.8, 10, drivetrain));
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, 90, drivetrain),
+        new WaitCommand(0.5),
+        new DriveDistance(0.8, 10, drivetrain),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, 90, drivetrain),
+        new WaitCommand(0.5));
   }
 }
