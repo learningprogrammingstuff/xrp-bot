@@ -37,7 +37,7 @@ public class RobotContainer {
   private final Arm m_arm = new Arm();
   private final Ultrasonic m_ultrasonic = new Ultrasonic();
 
-
+  private final XRPRangefinder m_rangefinder = new XRPRangefinder();
   // Assumes a gamepad plugged into channel 0
   private final Joystick m_controller = new Joystick(0);
 
