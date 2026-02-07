@@ -17,27 +17,48 @@ public class AutonomousDistance extends SequentialCommandGroup {
    *
    * @param drivetrain The drivetrain subsystem on which this command will run
    */
-  public AutonomousDistance(Drivetrain drivetrain) {
-    XRPRangefinder rangefinder = new XRPRangefinder();
+  public AutonomousDistance(Drivetrain drivetrain, XRPRangefinder rangefinder) {
     addCommands(
-        new DriveDistance(0.8, 1, drivetrain),
-        new DriveUntilDistance(0.5, 5, drivetrain, rangefinder),
+        // new DriveDistance(1, 1, drivetrain),
+        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
         new WaitCommand(0.5),
-        new TurnDegrees(0.8, 90, drivetrain),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
         new WaitCommand(0.5),
-        new DriveDistance(0.8, 1, drivetrain),
-        new DriveUntilDistance(0.5, 5, drivetrain, rangefinder),
+                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
         new WaitCommand(0.5),
-        new TurnDegrees(0.8, 90, drivetrain),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
         new WaitCommand(0.5),
-        new DriveDistance(0.8, 1, drivetrain),
-        new DriveUntilDistance(0.5, 5, drivetrain, rangefinder),
+                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
         new WaitCommand(0.5),
-        new TurnDegrees(0.8, 90, drivetrain),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
         new WaitCommand(0.5),
-        new DriveDistance(0.8, 1, drivetrain),
-        new DriveUntilDistance(0.5, 5, drivetrain, rangefinder),
+                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
         new WaitCommand(0.5),
-        new TurnDegrees(0.8, 90, drivetrain));
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5),
+                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5),
+                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5),
+        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5),
+        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5),
+        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5),
+        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
+        new WaitCommand(0.5),
+        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+        new WaitCommand(0.5));
   }
 }

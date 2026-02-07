@@ -35,8 +35,7 @@ public class RobotContainer {
   private final Drivetrain m_drivetrain = new Drivetrain();
   private final XRPOnBoardIO m_onboardIO = new XRPOnBoardIO();
   private final Arm m_arm = new Arm();
-  private final Ultrasonic m_ultrasonic = new Ultrasonic();
-
+  // private final Ultrasonic m_ultrasonic = new Ultrasonic();
   private final XRPRangefinder m_rangefinder = new XRPRangefinder();
   // Assumes a gamepad plugged into channel 0
   private final Joystick m_controller = new Joystick(0);
@@ -78,7 +77,7 @@ public class RobotContainer {
         .onFalse(new InstantCommand(() -> m_arm.setAngle(0.0), m_arm));
 
     // Setup SmartDashboard options
-    m_chooser.setDefaultOption("Auto Routine Distance", new AutonomousDistance(m_drivetrain));
+    m_chooser.setDefaultOption("Auto Routine Distance", new AutonomousDistance(m_drivetrain, m_rangefinder));
     m_chooser.addOption("Auto Routine Time", new AutonomousTime(m_drivetrain));
     SmartDashboard.putData(m_chooser);
   }
