@@ -23,8 +23,8 @@ public class AutonomousDistance extends SequentialCommandGroup {
         new RepeatCommand(
                 new SequentialCommandGroup(
                 // new DriveDistance(1, 1, drivetrain),
-                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-                new DriveDistance(-0.8, 10, drivetrain),
+                new DriveUntilDistance(1, 15, drivetrain, rangefinder),
+                new DriveDistance(-0.8, 7, drivetrain),
                 new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
                 new WaitCommand(0.5))));
   }
