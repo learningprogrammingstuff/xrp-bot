@@ -7,6 +7,7 @@ package frc.robot.commands;
 import frc.robot.subsystems.Drivetrain;
 import edu.wpi.first.wpilibj.Ultrasonic;
 import edu.wpi.first.wpilibj.xrp.XRPRangefinder;
+import edu.wpi.first.wpilibj2.command.RepeatCommand;
 import edu.wpi.first.wpilibj2.command.SequentialCommandGroup;
 import edu.wpi.first.wpilibj2.command.WaitCommand;
 
@@ -19,46 +20,12 @@ public class AutonomousDistance extends SequentialCommandGroup {
    */
   public AutonomousDistance(Drivetrain drivetrain, XRPRangefinder rangefinder) {
     addCommands(
-        // new DriveDistance(1, 1, drivetrain),
-        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
+        new RepeatCommand(
+                new SequentialCommandGroup(
+                // new DriveDistance(1, 1, drivetrain),
                 new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-                new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5),
-        new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-        new WaitCommand(0.5),
-        new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
-        new WaitCommand(0.5));
+                new DriveDistance(-1, 3, drivetrain),
+                new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
+                new WaitCommand(0.5))));
   }
 }

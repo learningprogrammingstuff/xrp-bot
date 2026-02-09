@@ -3,7 +3,6 @@ package frc.robot.subsystems;
 import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 import edu.wpi.first.wpilibj.xrp.XRPRangefinder;
 import edu.wpi.first.wpilibj2.command.SubsystemBase;
-import edu.wpi.first.wpilibj.smartdashboard.SmartDashboard;
 
 
 public class Ultrasonic extends SubsystemBase {
@@ -11,7 +10,12 @@ public class Ultrasonic extends SubsystemBase {
 
     public Ultrasonic() {
         m_Rangefinder = new XRPRangefinder();
-    }  
+    }
+
+    public XRPRangefinder getRangefinder() {
+        return m_Rangefinder;
+    }
+
     public double getDistanceMeters() {
         return m_Rangefinder.getDistanceMeters();
     }
