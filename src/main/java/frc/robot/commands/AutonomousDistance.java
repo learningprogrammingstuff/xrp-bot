@@ -24,7 +24,7 @@ public class AutonomousDistance extends SequentialCommandGroup {
                 new SequentialCommandGroup(
                 // new DriveDistance(1, 1, drivetrain),
                 new DriveUntilDistance(1, 14, drivetrain, rangefinder),
-                new DriveDistance(-1, 3, drivetrain),
+                new DriveDistance(-0.8, 10, drivetrain),
                 new TurnDegrees(0.8, ((Math.random() * 70) + 20), drivetrain),
                 new WaitCommand(0.5))));
   }
