@@ -5,7 +5,6 @@
 package frc.robot.sim;
 
 import com.sun.net.httpserver.HttpServer;
-import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 
 import java.awt.Desktop;
@@ -34,6 +33,7 @@ public class VisualizationServer {
   private volatile double beamEndX = 0.0;
   private volatile double beamEndY = 0.0;
   private volatile SimWorld simWorld;
+  private volatile OccupancyMapper mapper;
 
   /**
    * Creates a new visualization server on the default port.
@@ -53,6 +53,7 @@ public class VisualizationServer {
     // Set up HTTP endpoints
     server.createContext("/", this::handleRoot);
     server.createContext("/api/state", this::handleState);
+    server.createContext("/api/resetMap", this::handleResetMap);
     
     server.setExecutor(null); // Use default executor
   }
@@ -117,6 +118,13 @@ public class VisualizationServer {
   }
 
   /**
+   * Sets the occupancy mapper (used for reset map control).
+   */
+  public void setMapper(OccupancyMapper m) {
+    this.mapper = m;
+  }
+
+  /**
    * Handles the root endpoint - serves the HTML/JS visualization.
    */
   private void handleRoot(HttpExchange exchange) throws IOException {
@@ -124,6 +132,22 @@ public class VisualizationServer {
     byte[] response = html.getBytes(StandardCharsets.UTF_8);
     
     exchange.getResponseHeaders().set("Content-Type", "text/html; charset=UTF-8");
+    exchange.sendResponseHeaders(200, response.length);
+    try (OutputStream os = exchange.getResponseBody()) {
+      os.write(response);
+    }
+  }
+
+  /**
+   * Handles the /api/resetMap endpoint - clears the occupancy grid and map file.
+   */
+  private void handleResetMap(HttpExchange exchange) throws IOException {
+    if (mapper != null) {
+      mapper.clearMap();
+    }
+    byte[] response = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
     exchange.sendResponseHeaders(200, response.length);
     try (OutputStream os = exchange.getResponseBody()) {
       os.write(response);
@@ -227,6 +251,17 @@ public class VisualizationServer {
       margin: 0 0 10px 0;
       font-size: 18px;
     }
+    #resetBtn {
+      margin-top: 10px;
+      padding: 6px 16px;
+      background: #cc3333;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    #resetBtn:hover { background: #ee4444; }
   </style>
 </head>
 <body>
@@ -235,8 +270,9 @@ public class VisualizationServer {
     <h2>XRP Robot Pose</h2>
     <div>X: <span id="posX">0.00</span> in</div>
     <div>Y: <span id="posY">0.00</span> in</div>
-    <div>Heading: <span id="heading">0.0</span>°</div>
-    <div>Map Points: <span id="mapCount">0</span></div>
+    <div>Heading: <span id="heading">0.0</span>&deg;</div>
+    <div>Map Cells: <span id="mapCount">0</span></div>
+    <button id="resetBtn">Reset Map</button>
   </div>
 
   <script type="importmap">
@@ -305,25 +341,30 @@ public class VisualizationServer {
     const beamLine = new THREE.Line(beamGeometry, beamMaterial);
     scene.add(beamLine);
 
-    // Map points container
+    // Map points container – occupied cells rendered at z=0
     const mapPointsGroup = new THREE.Group();
     scene.add(mapPointsGroup);
 
     // World walls
-    const wallMaterial = new THREE.MeshBasicMaterial({ 
-      color: 0x4444ff, 
-      transparent: true, 
+    const wallMaterial = new THREE.MeshBasicMaterial({
+      color: 0x4444ff,
+      transparent: true,
       opacity: 0.2,
-      side: THREE.DoubleSide 
+      side: THREE.DoubleSide
     });
     const wallsGroup = new THREE.Group();
     scene.add(wallsGroup);
 
-    // Obstacles
+    // Ground-truth obstacles (semi-transparent reference – robot does NOT see these)
     const obstaclesGroup = new THREE.Group();
     scene.add(obstaclesGroup);
 
     let worldInitialized = false;
+
+    // Reset map button handler
+    document.getElementById('resetBtn').addEventListener('click', async () => {
+      try { await fetch('/api/resetMap', { method: 'POST' }); } catch(e) { console.error(e); }
+    });
 
     // Update function
     async function update() {
@@ -341,14 +382,14 @@ public class VisualizationServer {
         const beamEnd = new THREE.Vector3(data.beam.endX, 0, data.beam.endY);
         beamGeometry.setFromPoints([beamStart, beamEnd]);
 
-        // Update map points
+        // Update map points – show occupied cells as flat boxes at y=0
         mapPointsGroup.clear();
+        const cellGeo = new THREE.BoxGeometry(2, 0.3, 2);
+        const cellMat = new THREE.MeshStandardMaterial({ color: 0xff6600 });
         data.mapPoints.forEach(point => {
-          const pointGeometry = new THREE.SphereGeometry(0.5, 8, 8);
-          const pointMaterial = new THREE.MeshStandardMaterial({ color: 0xff6600 });
-          const pointMesh = new THREE.Mesh(pointGeometry, pointMaterial);
-          pointMesh.position.set(point.x, 0.5, point.y);
-          mapPointsGroup.add(pointMesh);
+          const cellMesh = new THREE.Mesh(cellGeo, cellMat);
+          cellMesh.position.set(point.x, 0.15, point.y);
+          mapPointsGroup.add(cellMesh);
         });
 
         // Initialize world once
@@ -392,11 +433,11 @@ public class VisualizationServer {
           wall4.position.set(width, wallHeight/2, height/2);
           wallsGroup.add(wall4);
 
-          // Add obstacles
-          const obstacleMaterial = new THREE.MeshStandardMaterial({ 
-            color: 0xff0000, 
-            transparent: true, 
-            opacity: 0.5 
+          // Ground-truth obstacles (faint reference – not visible to robot)
+          const obstacleMaterial = new THREE.MeshStandardMaterial({
+            color: 0xff0000,
+            transparent: true,
+            opacity: 0.15
           });
           data.world.obstacles.forEach(obs => {
             const obsWidth = obs.maxX - obs.minX;

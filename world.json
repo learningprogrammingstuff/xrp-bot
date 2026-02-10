@@ -1,0 +1,12 @@
+{
+  "description": "Default XRP simulation world. Robot mapping code must NOT read this file.",
+  "room": {
+    "width": 120.0,
+    "height": 96.0
+  },
+  "obstacles": [
+    { "minX": 30, "minY": 35, "maxX": 40, "maxY": 45 },
+    { "minX": 90, "minY": 20, "maxX": 95, "maxY": 70 },
+    { "minX": 70, "minY": 70, "maxX": 80, "maxY": 80 }
+  ]
+}
