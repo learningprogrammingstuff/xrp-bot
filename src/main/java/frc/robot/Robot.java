@@ -107,12 +107,21 @@ public class Robot extends TimedRobot {
     try {
       // Initialize simulation components
       ekfLocalizer = new EKFLocalizer(60.0, 48.0, 0.0); // Start at center of room
-      mapper = new OccupancyMapper();
-      simWorld = new SimWorld();
+
+      // Load ground-truth world from external file (robot code never reads this file).
+      // Falls back to procedural generation if file is missing.
+      simWorld = new SimWorld("world.json");
+
+      // Mapper starts with an empty/unknown grid – it discovers the world via
+      // sensor readings only.  The grid dimensions match the room purely for
+      // sizing; no obstacle information is shared.
+      mapper = new OccupancyMapper("xrp-map.json", simWorld.getRoomWidth(), simWorld.getRoomHeight());
+
       vizServer = new VisualizationServer();
       
       // Configure visualization server
       vizServer.setSimWorld(simWorld);
+      vizServer.setMapper(mapper);
       
       // Start server and open browser
       vizServer.start();
