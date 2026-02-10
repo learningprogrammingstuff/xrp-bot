@@ -122,6 +122,7 @@ public class Robot extends TimedRobot {
       // Configure visualization server
       vizServer.setSimWorld(simWorld);
       vizServer.setMapper(mapper);
+      vizServer.setLocalizer(ekfLocalizer);
       
       // Start server and open browser
       vizServer.start();

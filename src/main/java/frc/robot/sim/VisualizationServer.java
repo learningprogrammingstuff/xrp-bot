@@ -34,6 +34,7 @@ public class VisualizationServer {
   private volatile double beamEndY = 0.0;
   private volatile SimWorld simWorld;
   private volatile OccupancyMapper mapper;
+  private volatile EKFLocalizer localizer;
 
   /**
    * Creates a new visualization server on the default port.
@@ -54,6 +55,7 @@ public class VisualizationServer {
     server.createContext("/", this::handleRoot);
     server.createContext("/api/state", this::handleState);
     server.createContext("/api/resetMap", this::handleResetMap);
+    server.createContext("/api/setOrigin", this::handleSetOrigin);
     
     server.setExecutor(null); // Use default executor
   }
@@ -125,6 +127,13 @@ public class VisualizationServer {
   }
 
   /**
+   * Sets the EKF localizer (used for set-origin control).
+   */
+  public void setLocalizer(EKFLocalizer l) {
+    this.localizer = l;
+  }
+
+  /**
    * Handles the root endpoint - serves the HTML/JS visualization.
    */
   private void handleRoot(HttpExchange exchange) throws IOException {
@@ -144,6 +153,31 @@ public class VisualizationServer {
   private void handleResetMap(HttpExchange exchange) throws IOException {
     if (mapper != null) {
       mapper.clearMap();
+    }
+    byte[] response = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
+    exchange.getResponseHeaders().set("Content-Type", "application/json");
+    exchange.getResponseHeaders().set("Access-Control-Allow-Origin", "*");
+    exchange.sendResponseHeaders(200, response.length);
+    try (OutputStream os = exchange.getResponseBody()) {
+      os.write(response);
+    }
+  }
+
+  /**
+   * Handles the /api/setOrigin endpoint - re-defines the current robot pose as origin (0,0).
+   * Transforms all stored map points and resets the estimator pose.
+   */
+  private void handleSetOrigin(HttpExchange exchange) throws IOException {
+    if (localizer != null && mapper != null) {
+      double curX = localizer.getX();
+      double curY = localizer.getY();
+      double curTheta = localizer.getTheta();
+
+      // Transform map points to new coordinate frame
+      mapper.setOrigin(curX, curY);
+
+      // Reset the pose estimator to (0, 0) keeping current heading
+      localizer.reset(0.0, 0.0, curTheta);
     }
     byte[] response = "{\"status\":\"ok\"}".getBytes(StandardCharsets.UTF_8);
     exchange.getResponseHeaders().set("Content-Type", "application/json");
@@ -251,17 +285,21 @@ public class VisualizationServer {
       margin: 0 0 10px 0;
       font-size: 18px;
     }
-    #resetBtn {
-      margin-top: 10px;
+    .btn {
+      margin-top: 8px;
       padding: 6px 16px;
-      background: #cc3333;
       color: white;
       border: none;
       border-radius: 4px;
       cursor: pointer;
       font-size: 14px;
+      display: block;
+      width: 100%;
     }
+    #resetBtn { background: #cc3333; }
     #resetBtn:hover { background: #ee4444; }
+    #setOriginBtn { background: #3366cc; }
+    #setOriginBtn:hover { background: #4488ee; }
   </style>
 </head>
 <body>
@@ -271,8 +309,9 @@ public class VisualizationServer {
     <div>X: <span id="posX">0.00</span> in</div>
     <div>Y: <span id="posY">0.00</span> in</div>
     <div>Heading: <span id="heading">0.0</span>&deg;</div>
-    <div>Map Cells: <span id="mapCount">0</span></div>
-    <button id="resetBtn">Reset Map</button>
+    <div>Map Points: <span id="mapCount">0</span></div>
+    <button id="resetBtn" class="btn">Reset Map</button>
+    <button id="setOriginBtn" class="btn">Set Origin (0,0)</button>
   </div>
 
   <script type="importmap">
@@ -292,7 +331,7 @@ public class VisualizationServer {
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x1a1a2e);
 
-    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
     camera.position.set(60, 80, 80);
     camera.lookAt(60, 0, 48);
 
@@ -341,9 +380,19 @@ public class VisualizationServer {
     const beamLine = new THREE.Line(beamGeometry, beamMaterial);
     scene.add(beamLine);
 
-    // Map points container – occupied cells rendered at z=0
-    const mapPointsGroup = new THREE.Group();
-    scene.add(mapPointsGroup);
+    // Map points – rendered as tiny point sprites (dots)
+    const MAX_POINTS = 100000;
+    const pointPositions = new Float32Array(MAX_POINTS * 3);
+    const pointGeometry = new THREE.BufferGeometry();
+    pointGeometry.setAttribute('position', new THREE.BufferAttribute(pointPositions, 3));
+    pointGeometry.setDrawRange(0, 0);
+    const pointMaterial = new THREE.PointsMaterial({
+      color: 0xff6600,
+      size: 1.5,
+      sizeAttenuation: true
+    });
+    const mapPointCloud = new THREE.Points(pointGeometry, pointMaterial);
+    scene.add(mapPointCloud);
 
     // World walls
     const wallMaterial = new THREE.MeshBasicMaterial({
@@ -355,7 +404,7 @@ public class VisualizationServer {
     const wallsGroup = new THREE.Group();
     scene.add(wallsGroup);
 
-    // Ground-truth obstacles (semi-transparent reference – robot does NOT see these)
+    // Ground-truth obstacles (semi-transparent reference - robot does NOT see these)
     const obstaclesGroup = new THREE.Group();
     scene.add(obstaclesGroup);
 
@@ -364,6 +413,11 @@ public class VisualizationServer {
     // Reset map button handler
     document.getElementById('resetBtn').addEventListener('click', async () => {
       try { await fetch('/api/resetMap', { method: 'POST' }); } catch(e) { console.error(e); }
+    });
+
+    // Set Origin button handler
+    document.getElementById('setOriginBtn').addEventListener('click', async () => {
+      try { await fetch('/api/setOrigin', { method: 'POST' }); } catch(e) { console.error(e); }
     });
 
     // Update function
@@ -382,15 +436,15 @@ public class VisualizationServer {
         const beamEnd = new THREE.Vector3(data.beam.endX, 0, data.beam.endY);
         beamGeometry.setFromPoints([beamStart, beamEnd]);
 
-        // Update map points – show occupied cells as flat boxes at y=0
-        mapPointsGroup.clear();
-        const cellGeo = new THREE.BoxGeometry(2, 0.3, 2);
-        const cellMat = new THREE.MeshStandardMaterial({ color: 0xff6600 });
-        data.mapPoints.forEach(point => {
-          const cellMesh = new THREE.Mesh(cellGeo, cellMat);
-          cellMesh.position.set(point.x, 0.15, point.y);
-          mapPointsGroup.add(cellMesh);
-        });
+        // Update map points – render as tiny dots (point cloud)
+        const numPts = Math.min(data.mapPoints.length, MAX_POINTS);
+        for (let i = 0; i < numPts; i++) {
+          pointPositions[i * 3]     = data.mapPoints[i].x;
+          pointPositions[i * 3 + 1] = 0.15;
+          pointPositions[i * 3 + 2] = data.mapPoints[i].y;
+        }
+        pointGeometry.setDrawRange(0, numPts);
+        pointGeometry.attributes.position.needsUpdate = true;
 
         // Initialize world once
         if (!worldInitialized && data.world) {
@@ -433,7 +487,7 @@ public class VisualizationServer {
           wall4.position.set(width, wallHeight/2, height/2);
           wallsGroup.add(wall4);
 
-          // Ground-truth obstacles (faint reference – not visible to robot)
+          // Ground-truth obstacles (faint reference - not visible to robot)
           const obstacleMaterial = new THREE.MeshStandardMaterial({
             color: 0xff0000,
             transparent: true,

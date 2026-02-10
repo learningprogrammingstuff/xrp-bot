@@ -13,13 +13,17 @@ package frc.robot.sim;
  * 
  * Prediction step uses differential drive odometry from encoder deltas.
  * Update step uses gyro heading measurements.
+ * 
+ * Includes wheel slip detection: when encoder-derived yaw rate disagrees with
+ * the gyro, encoder trust is reduced (process noise inflated) until the
+ * disagreement subsides.
  */
 public class EKFLocalizer {
   // Tuning constants
-  /** Process noise for position (inches²) */
+  /** Base process noise for position (inches²) */
   private static final double PROCESS_NOISE_POSITION = 0.1;
   
-  /** Process noise for heading (radians²) */
+  /** Base process noise for heading (radians²) */
   private static final double PROCESS_NOISE_HEADING = 0.01;
   
   /** Measurement noise for gyro (radians²) */
@@ -27,6 +31,19 @@ public class EKFLocalizer {
   
   /** Track width between left and right wheels (inches) */
   private static final double TRACK_WIDTH = 6.0;
+
+  // Slip detection tuning
+  /** Yaw rate disagreement threshold for slip detection (radians per tick) */
+  private static final double SLIP_YAW_RATE_THRESHOLD = 0.08;
+
+  /** Consecutive frames required to enter slip mode */
+  private static final int SLIP_ENTER_FRAMES = 3;
+
+  /** Consecutive non-slip frames required to exit slip mode */
+  private static final int SLIP_EXIT_FRAMES = 5;
+
+  /** Multiplier for process noise during detected slip */
+  private static final double SLIP_NOISE_MULTIPLIER = 10.0;
 
   // State: [x, y, theta]
   private double x;      // Position X (inches)
@@ -36,7 +53,7 @@ public class EKFLocalizer {
   // Covariance matrix (3x3)
   private Matrix3x3 P;
 
-  // Process noise covariance (3x3)
+  // Process noise covariance (3x3) – base values, inflated during slip
   private Matrix3x3 Q;
 
   // Measurement noise covariance (scalar for gyro)
@@ -46,6 +63,13 @@ public class EKFLocalizer {
   private double prevLeftDistance;
   private double prevRightDistance;
   private boolean firstUpdate;
+
+  // Slip detection state
+  private boolean slipDetected;
+  private int slipFrameCounter;
+  private int nonSlipFrameCounter;
+  private double prevGyroAngleRad;
+  private boolean gyroInitialized;
 
   /**
    * Creates a new EKF localizer with default initial state at origin.
@@ -80,11 +104,20 @@ public class EKFLocalizer {
     prevLeftDistance = 0.0;
     prevRightDistance = 0.0;
     firstUpdate = true;
+
+    // Slip detection state
+    slipDetected = false;
+    slipFrameCounter = 0;
+    nonSlipFrameCounter = 0;
+    prevGyroAngleRad = 0.0;
+    gyroInitialized = false;
   }
 
   /**
    * Prediction step using wheel odometry.
    * Updates state estimate based on encoder measurements.
+   * When wheel slip is detected, encoder process noise is inflated
+   * so the gyro correction dominates.
    * 
    * @param leftDistance Current left encoder distance (inches)
    * @param rightDistance Current right encoder distance (inches)
@@ -111,9 +144,6 @@ public class EKFLocalizer {
     double dTheta = (deltaRight - deltaLeft) / TRACK_WIDTH;
 
     // Predict new state using motion model
-    // x_new = x + distance * cos(theta)
-    // y_new = y + distance * sin(theta)
-    // theta_new = theta + dTheta
     double prevTheta = theta;
     x += distance * Math.cos(prevTheta);
     y += distance * Math.sin(prevTheta);
@@ -123,19 +153,30 @@ public class EKFLocalizer {
     theta = normalizeAngle(theta);
 
     // Compute Jacobian of motion model for covariance propagation
-    // F = I + dg/dx where g is the motion model
     Matrix3x3 F = Matrix3x3.identity();
     F.set(0, 2, -distance * Math.sin(prevTheta));  // dx/dtheta
     F.set(1, 2, distance * Math.cos(prevTheta));   // dy/dtheta
 
-    // Update covariance: P = F * P * F^T + Q
+    // Apply adaptive process noise – inflate when slip is detected
+    Matrix3x3 Qeff = Q;
+    if (slipDetected) {
+      Qeff = new Matrix3x3(new double[][] {
+        {PROCESS_NOISE_POSITION * SLIP_NOISE_MULTIPLIER, 0, 0},
+        {0, PROCESS_NOISE_POSITION * SLIP_NOISE_MULTIPLIER, 0},
+        {0, 0, PROCESS_NOISE_HEADING}
+      });
+    }
+
+    // Update covariance: P = F * P * F^T + Q_eff
     Matrix3x3 Ft = F.transpose();
-    P = F.multiply(P).multiply(Ft).add(Q);
+    P = F.multiply(P).multiply(Ft).add(Qeff);
   }
 
   /**
    * Update step using gyro measurement.
    * Corrects state estimate based on gyro heading.
+   * Also runs wheel slip detection by comparing encoder-derived yaw rate
+   * against gyro-derived yaw rate.
    * 
    * @param gyroAngleDegrees Gyro Z-axis angle in degrees
    */
@@ -144,16 +185,37 @@ public class EKFLocalizer {
     double z = Math.toRadians(gyroAngleDegrees);
     z = normalizeAngle(z);
 
+    // Slip detection: compare encoder yaw change vs gyro yaw change
+    if (gyroInitialized) {
+      double gyroYawDelta = normalizeAngle(z - prevGyroAngleRad);
+      // Encoder-derived yaw change was already applied in predict() as dTheta;
+      // we compare the current theta (post-predict) vs gyro
+      double encoderVsGyroDisagreement = Math.abs(normalizeAngle(theta - z));
+
+      if (encoderVsGyroDisagreement > SLIP_YAW_RATE_THRESHOLD) {
+        slipFrameCounter++;
+        nonSlipFrameCounter = 0;
+        if (slipFrameCounter >= SLIP_ENTER_FRAMES && !slipDetected) {
+          slipDetected = true;
+        }
+      } else {
+        nonSlipFrameCounter++;
+        slipFrameCounter = 0;
+        if (nonSlipFrameCounter >= SLIP_EXIT_FRAMES && slipDetected) {
+          slipDetected = false;
+        }
+      }
+    }
+    prevGyroAngleRad = z;
+    gyroInitialized = true;
+
     // Measurement model: H = [0, 0, 1] (gyro directly observes heading)
-    // Innovation: y = z - H*x = z - theta
     double innovation = normalizeAngle(z - theta);
 
     // Innovation covariance: S = H * P * H^T + R
-    // Since H = [0, 0, 1], H*P*H^T = P[2][2]
     double S = P.get(2, 2) + R;
 
     // Kalman gain: K = P * H^T / S
-    // K is a 3x1 vector: [P[0][2]/S, P[1][2]/S, P[2][2]/S]
     double k0 = P.get(0, 2) / S;
     double k1 = P.get(1, 2) / S;
     double k2 = P.get(2, 2) / S;
@@ -165,7 +227,6 @@ public class EKFLocalizer {
     theta = normalizeAngle(theta);
 
     // Covariance update: P = (I - K*H) * P
-    // Since H = [0, 0, 1], K*H creates a matrix with K in the third column
     Matrix3x3 KH = new Matrix3x3();
     KH.set(0, 2, k0);
     KH.set(1, 2, k1);
@@ -242,5 +303,17 @@ public class EKFLocalizer {
     this.theta = normalizeAngle(newTheta);
     P = Matrix3x3.identity().multiplyScalar(0.1);
     firstUpdate = true;
+    slipDetected = false;
+    slipFrameCounter = 0;
+    nonSlipFrameCounter = 0;
+    gyroInitialized = false;
+  }
+
+  /**
+   * Returns whether wheel slip is currently detected.
+   * @return true if slip mode is active
+   */
+  public boolean isSlipDetected() {
+    return slipDetected;
   }
 }
