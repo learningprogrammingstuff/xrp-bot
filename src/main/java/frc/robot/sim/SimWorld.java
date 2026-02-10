@@ -182,8 +182,8 @@ public class SimWorld {
   private double raycastToObstacle(double x, double y, double dirX, double dirY, Obstacle obs) {
     double minDist = MAX_RANGE;
     
-    // Left edge (x = minX)
-    if (dirX > 0) {
+    // Left edge (x = minX) - check all rays moving in positive X direction
+    if (Math.abs(dirX) > 1e-10) {
       double t = (obs.minX - x) / dirX;
       if (t > 0) {
         double intersectY = y + t * dirY;
@@ -193,8 +193,8 @@ public class SimWorld {
       }
     }
     
-    // Right edge (x = maxX)
-    if (dirX < 0) {
+    // Right edge (x = maxX) - check all rays
+    if (Math.abs(dirX) > 1e-10) {
       double t = (obs.maxX - x) / dirX;
       if (t > 0) {
         double intersectY = y + t * dirY;
@@ -204,8 +204,8 @@ public class SimWorld {
       }
     }
     
-    // Bottom edge (y = minY)
-    if (dirY > 0) {
+    // Bottom edge (y = minY) - check all rays moving in positive Y direction
+    if (Math.abs(dirY) > 1e-10) {
       double t = (obs.minY - y) / dirY;
       if (t > 0) {
         double intersectX = x + t * dirX;
@@ -215,8 +215,8 @@ public class SimWorld {
       }
     }
     
-    // Top edge (y = maxY)
-    if (dirY < 0) {
+    // Top edge (y = maxY) - check all rays
+    if (Math.abs(dirY) > 1e-10) {
       double t = (obs.maxY - y) / dirY;
       if (t > 0) {
         double intersectX = x + t * dirX;
