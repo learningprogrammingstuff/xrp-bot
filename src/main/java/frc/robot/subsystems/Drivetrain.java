@@ -143,6 +143,30 @@ public class Drivetrain extends SubsystemBase {
     m_gyro.reset();
   }
 
+  /**
+   * Gets the left encoder.
+   * @return The left encoder
+   */
+  public Encoder getLeftEncoder() {
+    return m_leftEncoder;
+  }
+
+  /**
+   * Gets the right encoder.
+   * @return The right encoder
+   */
+  public Encoder getRightEncoder() {
+    return m_rightEncoder;
+  }
+
+  /**
+   * Gets the gyro.
+   * @return The XRP gyro
+   */
+  public XRPGyro getGyro() {
+    return m_gyro;
+  }
+
   @Override
   public void periodic() {
     // This method will be called once per scheduler run
