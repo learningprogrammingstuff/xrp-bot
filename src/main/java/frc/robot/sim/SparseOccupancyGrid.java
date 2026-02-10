@@ -328,8 +328,9 @@ public class SparseOccupancyGrid {
       int newGy = worldToGridY(wy);
       long newKey = cellKey(newGx, newGy);
       Double existing = logOdds.get(newKey);
-      double baseVal = existing != null ? existing : L_PRIOR;
-      logOdds.put(newKey, clamp(baseVal + entry.getValue()));
+      if (existing == null || Math.abs(entry.getValue()) > Math.abs(existing)) {
+        logOdds.put(newKey, clamp(entry.getValue()));
+      }
     }
   }
 

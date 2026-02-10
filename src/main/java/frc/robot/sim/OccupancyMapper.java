@@ -106,10 +106,11 @@ public class OccupancyMapper {
       return false;
     }
 
-    // Determine if this is a real hit (object detected) or a no-return reading.
-    // No-return is represented as a very large distance; we still trace free-space
-    // along the beam but do not mark an occupied endpoint.
-    boolean isHit = !Double.isNaN(range) && !Double.isInfinite(range);
+    // Distinguish between actual hit and max-range no-return.
+    // A very large range (>= 1960 inches / ~50 m) with no obstacle is treated
+    // as a no-hit: free-space is traced along the beam but no occupied endpoint
+    // is marked.
+    boolean isHit = range < 1960.0;
 
     grid.update(range, robotX, robotY, robotTheta, isHit);
     poseHistory.add(new double[] {robotX, robotY, robotTheta, System.currentTimeMillis()});

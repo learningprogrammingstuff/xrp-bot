@@ -251,7 +251,7 @@ public class SimWorld {
   /**
    * Simulates an ultrasonic range measurement via ray casting.
    * Returns the true hit distance up to the configured cap (~50 m).
-   * If no intersection is found, returns MAX_RANGE (not clamped to 4 m).
+   * If no intersection is found, returns MAX_RANGE.
    *
    * @param robotX Robot X position (inches)
    * @param robotY Robot Y position (inches)

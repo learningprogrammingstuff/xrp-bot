@@ -70,6 +70,7 @@ public class EKFLocalizer {
   private int nonSlipFrameCounter;
   private double prevGyroAngleRad;
   private boolean gyroInitialized;
+  private double lastEncoderDTheta;
 
   /**
    * Creates a new EKF localizer with default initial state at origin.
@@ -111,6 +112,7 @@ public class EKFLocalizer {
     nonSlipFrameCounter = 0;
     prevGyroAngleRad = 0.0;
     gyroInitialized = false;
+    lastEncoderDTheta = 0.0;
   }
 
   /**
@@ -142,6 +144,9 @@ public class EKFLocalizer {
     // Compute linear distance traveled and change in heading
     double distance = (deltaLeft + deltaRight) / 2.0;
     double dTheta = (deltaRight - deltaLeft) / TRACK_WIDTH;
+
+    // Store encoder-derived yaw change for slip detection
+    lastEncoderDTheta = dTheta;
 
     // Predict new state using motion model
     double prevTheta = theta;
@@ -185,12 +190,11 @@ public class EKFLocalizer {
     double z = Math.toRadians(gyroAngleDegrees);
     z = normalizeAngle(z);
 
-    // Slip detection: compare encoder yaw change vs gyro yaw change
+    // Slip detection: compare incremental encoder yaw change vs gyro yaw change
     if (gyroInitialized) {
       double gyroYawDelta = normalizeAngle(z - prevGyroAngleRad);
-      // Encoder-derived yaw change was already applied in predict() as dTheta;
-      // we compare the current theta (post-predict) vs gyro
-      double encoderVsGyroDisagreement = Math.abs(normalizeAngle(theta - z));
+      // Compare encoder-derived yaw change (from predict step) vs gyro-derived yaw change
+      double encoderVsGyroDisagreement = Math.abs(normalizeAngle(lastEncoderDTheta - gyroYawDelta));
 
       if (encoderVsGyroDisagreement > SLIP_YAW_RATE_THRESHOLD) {
         slipFrameCounter++;
@@ -307,6 +311,7 @@ public class EKFLocalizer {
     slipFrameCounter = 0;
     nonSlipFrameCounter = 0;
     gyroInitialized = false;
+    lastEncoderDTheta = 0.0;
   }
 
   /**
