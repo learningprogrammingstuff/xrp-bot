@@ -59,6 +59,9 @@ public class OccupancyGrid {
   /** Sensor offset from robot center (inches) */
   private static final double SENSOR_OFFSET = 2.0;
 
+  /** Log-odds threshold for considering a cell occupied in range prediction */
+  private static final double PREDICT_OCCUPIED_THRESHOLD = 0.5;
+
   /** Thickness of occupied region at beam endpoint (in cells) */
   private static final int OCCUPIED_THICKNESS = 2;
 
@@ -100,7 +103,9 @@ public class OccupancyGrid {
 
     // Cast multiple rays within the cone
     for (int r = 0; r < CONE_RAYS; r++) {
-      double angleOffset = -HALF_CONE_ANGLE + (2.0 * HALF_CONE_ANGLE * r) / (CONE_RAYS - 1);
+      double angleOffset = (CONE_RAYS > 1)
+          ? -HALF_CONE_ANGLE + (2.0 * HALF_CONE_ANGLE * r) / (CONE_RAYS - 1)
+          : 0.0;
       double rayAngle = robotTheta + angleOffset;
       updateRay(sensorX, sensorY, rayAngle, range, isMaxRange);
     }
@@ -203,8 +208,7 @@ public class OccupancyGrid {
         return d; // Hit grid boundary
       }
 
-      // Occupied threshold: log-odds > 0.5
-      if (logOdds[gx][gy] > 0.5) {
+      if (logOdds[gx][gy] > PREDICT_OCCUPIED_THRESHOLD) {
         return d;
       }
     }
@@ -251,6 +255,21 @@ public class OccupancyGrid {
       for (int gy = 0; gy < gridHeight; gy++) {
         logOdds[gx][gy] = L_PRIOR;
       }
+    }
+  }
+
+  /**
+   * Directly marks a world-coordinate position as occupied.
+   * Used when restoring a previously saved map.
+   *
+   * @param wx World X coordinate (inches)
+   * @param wy World Y coordinate (inches)
+   */
+  public void markOccupied(double wx, double wy) {
+    int gx = worldToGridX(wx);
+    int gy = worldToGridY(wy);
+    if (inBounds(gx, gy)) {
+      logOdds[gx][gy] = clamp(logOdds[gx][gy] + L_OCC);
     }
   }
 

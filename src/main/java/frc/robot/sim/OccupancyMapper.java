@@ -6,6 +6,7 @@ package frc.robot.sim;
 
 import java.io.FileWriter;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -264,7 +265,7 @@ public class OccupancyMapper {
         return;
       }
 
-      String content = new String(Files.readAllBytes(Paths.get(mapFilePath)));
+      String content = new String(Files.readAllBytes(Paths.get(mapFilePath)), StandardCharsets.UTF_8);
 
       // Look for occupiedCells array
       int cellsStart = content.indexOf("\"occupiedCells\"");
@@ -287,8 +288,8 @@ public class OccupancyMapper {
         try {
           double x = extractJsonValue(cellObj, "x");
           double y = extractJsonValue(cellObj, "y");
-          // Mark these cells as moderately occupied in the grid
-          grid.update(0, x, y, 0); // minimal update to seed the cell
+          // Mark these cells as occupied in the grid
+          grid.markOccupied(x, y);
           loadedCount++;
         } catch (Exception e) {
           // Skip malformed entries
@@ -322,7 +323,7 @@ public class OccupancyMapper {
       try {
         double x = extractJsonValue(pointObj, "x");
         double y = extractJsonValue(pointObj, "y");
-        grid.update(0, x, y, 0);
+        grid.markOccupied(x, y);
         loadedCount++;
       } catch (Exception e) {
         // Skip malformed entries

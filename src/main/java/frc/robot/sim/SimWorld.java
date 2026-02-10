@@ -5,6 +5,7 @@
 package frc.robot.sim;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.util.ArrayList;
@@ -110,7 +111,7 @@ public class SimWorld {
       if (!Files.exists(Paths.get(path))) {
         return false;
       }
-      String content = new String(Files.readAllBytes(Paths.get(path)));
+      String content = new String(Files.readAllBytes(Paths.get(path)), StandardCharsets.UTF_8);
 
       // Parse room dimensions
       roomWidth = extractNestedJsonValue(content, "room", "width", 120.0);
