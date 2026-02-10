@@ -26,8 +26,8 @@ public class SimWorld {
   /** Standard deviation of ultrasonic measurement noise (inches) */
   private static final double MEASUREMENT_NOISE_STDDEV = 0.5;
 
-  /** Maximum valid ultrasonic range (inches) */
-  private static final double MAX_RANGE = 157.0;
+  /** Maximum raycast distance (inches) – configurable cap (~50 m) */
+  private static final double MAX_RANGE = 1968.0;
 
   /** Minimum valid ultrasonic range (inches) */
   private static final double MIN_RANGE = 1.0;
@@ -250,6 +250,8 @@ public class SimWorld {
 
   /**
    * Simulates an ultrasonic range measurement via ray casting.
+   * Returns the true hit distance up to the configured cap (~50 m).
+   * If no intersection is found, returns MAX_RANGE.
    *
    * @param robotX Robot X position (inches)
    * @param robotY Robot Y position (inches)
@@ -282,8 +284,8 @@ public class SimWorld {
     double noise = random.nextGaussian() * MEASUREMENT_NOISE_STDDEV;
     double measurement = minDistance + noise;
 
-    // Clamp to valid range
-    if (measurement < MIN_RANGE || measurement > MAX_RANGE) {
+    // Clamp to valid range – but only on the low end; high range is preserved
+    if (measurement < MIN_RANGE) {
       return MAX_RANGE;
     }
 

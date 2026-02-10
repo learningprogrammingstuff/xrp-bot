@@ -13,20 +13,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * Manages ultrasonic-based occupancy mapping using a log-odds occupancy grid.
+ * Manages ultrasonic-based occupancy mapping using a sparse log-odds occupancy grid.
  * <p>
  * For each HC-SR04 range measurement the inverse sensor model marks cells along
  * the beam as free and the endpoint region as occupied.  The sensor is modeled
  * as a cone (not a perfect laser) to reflect the HC-SR04 beam pattern.
+ * <p>
+ * The map is unbounded – no predefined world size is required.
  * <p>
  * Drift correction uses scan-to-map consistency: the expected range is predicted
  * by ray-marching through the <em>learned</em> occupancy grid (no access to the
  * ground-truth world).
  */
 public class OccupancyMapper {
-  /** Maximum valid ultrasonic range (inches) */
-  private static final double MAX_VALID_RANGE = 157.0;
-
   /** Minimum valid ultrasonic range (inches) */
   private static final double MIN_VALID_RANGE = 1.0;
 
@@ -48,7 +47,7 @@ public class OccupancyMapper {
   /** Log-odds threshold for occupied cells in visualization / persistence */
   private static final double OCCUPIED_THRESHOLD = 0.3;
 
-  private final OccupancyGrid grid;
+  private final SparseOccupancyGrid grid;
   private final List<double[]> poseHistory;
   private final String mapFilePath;
   private long lastSaveTime;
@@ -59,20 +58,19 @@ public class OccupancyMapper {
   private double lastDriftError;
 
   /**
-   * Creates a new occupancy mapper with default file path and grid dimensions.
+   * Creates a new occupancy mapper with default file path.
+   * No world size is required – the map grows dynamically.
    */
   public OccupancyMapper() {
-    this("xrp-map.json", 120.0, 96.0);
+    this("xrp-map.json");
   }
 
   /**
    * Creates a new occupancy mapper.
-   * @param mapFilePath  Path to save/load map data
-   * @param worldWidth   World width in inches (for grid sizing only)
-   * @param worldHeight  World height in inches (for grid sizing only)
+   * @param mapFilePath Path to save/load map data
    */
-  public OccupancyMapper(String mapFilePath, double worldWidth, double worldHeight) {
-    this.grid = new OccupancyGrid(worldWidth, worldHeight, GRID_RESOLUTION);
+  public OccupancyMapper(String mapFilePath) {
+    this.grid = new SparseOccupancyGrid(GRID_RESOLUTION);
     this.poseHistory = new ArrayList<>();
     this.mapFilePath = mapFilePath;
     this.lastSaveTime = System.currentTimeMillis();
@@ -84,7 +82,18 @@ public class OccupancyMapper {
   }
 
   /**
+   * Creates a new occupancy mapper (legacy signature retained for compatibility).
+   * @param mapFilePath  Path to save/load map data
+   * @param worldWidth   Ignored – map is unbounded
+   * @param worldHeight  Ignored – map is unbounded
+   */
+  public OccupancyMapper(String mapFilePath, double worldWidth, double worldHeight) {
+    this(mapFilePath);
+  }
+
+  /**
    * Updates the occupancy grid with a new ultrasonic reading.
+   * No upper-range clipping – readings beyond 4 m are processed normally.
    *
    * @param range      Ultrasonic range measurement (inches)
    * @param robotX     Current robot X position (inches)
@@ -93,11 +102,17 @@ public class OccupancyMapper {
    * @return true if the grid was updated, false if the reading was invalid
    */
   public boolean addPoint(double range, double robotX, double robotY, double robotTheta) {
-    if (range < MIN_VALID_RANGE || range > MAX_VALID_RANGE) {
+    if (range < MIN_VALID_RANGE || Double.isNaN(range) || Double.isInfinite(range)) {
       return false;
     }
 
-    grid.update(range, robotX, robotY, robotTheta);
+    // Distinguish between actual hit and max-range no-return.
+    // A very large range (>= 1960 inches / ~50 m) with no obstacle is treated
+    // as a no-hit: free-space is traced along the beam but no occupied endpoint
+    // is marked.
+    boolean isHit = range < 1960.0;
+
+    grid.update(range, robotX, robotY, robotTheta, isHit);
     poseHistory.add(new double[] {robotX, robotY, robotTheta, System.currentTimeMillis()});
     updatesSinceLastSave++;
 
@@ -122,7 +137,7 @@ public class OccupancyMapper {
    * @return Correction vector [dx, dy] or null if no correction needed
    */
   public double[] checkDriftCorrection(double currentRange, double robotX, double robotY, double robotTheta) {
-    if (currentRange < MIN_VALID_RANGE || currentRange > MAX_VALID_RANGE) {
+    if (currentRange < MIN_VALID_RANGE || Double.isNaN(currentRange) || Double.isInfinite(currentRange)) {
       return null;
     }
 
@@ -179,10 +194,31 @@ public class OccupancyMapper {
   }
 
   /**
-   * Gets the underlying occupancy grid.
+   * Gets the underlying sparse occupancy grid.
    */
-  public OccupancyGrid getGrid() {
+  public SparseOccupancyGrid getGrid() {
     return grid;
+  }
+
+  /**
+   * Re-defines the current robot pose as the new coordinate origin.
+   * Transforms all stored map points by subtracting the current pose translation.
+   *
+   * @param currentX     Current robot X position (inches)
+   * @param currentY     Current robot Y position (inches)
+   */
+  public void setOrigin(double currentX, double currentY) {
+    // Translate all occupied cells in the sparse grid
+    grid.translateAll(-currentX, -currentY);
+
+    // Transform pose history
+    for (double[] p : poseHistory) {
+      p[0] -= currentX;
+      p[1] -= currentY;
+    }
+
+    // Immediately save in the new coordinate frame
+    saveMap();
   }
 
   /**
@@ -204,8 +240,8 @@ public class OccupancyMapper {
    * <p>
    * Saved data includes:
    * <ul>
-   *   <li>Occupied cell list (x, y world coordinates)</li>
-   *   <li>Grid resolution and origin</li>
+   *   <li>Occupied points list (x, y, weight) – grows without bounds</li>
+   *   <li>Grid resolution</li>
    *   <li>Timestamp</li>
    *   <li>Pose history</li>
    * </ul>
@@ -215,10 +251,8 @@ public class OccupancyMapper {
       writer.write("{\n");
       writer.write("  \"timestamp\": " + System.currentTimeMillis() + ",\n");
       writer.write("  \"resolution\": " + grid.getResolution() + ",\n");
-      writer.write("  \"originX\": " + grid.getOriginX() + ",\n");
-      writer.write("  \"originY\": " + grid.getOriginY() + ",\n");
 
-      // Write occupied cells
+      // Write occupied cells with confidence weights
       double[][] cells = grid.getOccupiedCells(OCCUPIED_THRESHOLD);
       writer.write("  \"occupiedCells\": [\n");
       for (int i = 0; i < cells.length; i++) {
