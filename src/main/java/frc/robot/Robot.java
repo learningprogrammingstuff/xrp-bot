@@ -7,6 +7,10 @@ package frc.robot;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
+import frc.robot.sim.EKFLocalizer;
+import frc.robot.sim.OccupancyMapper;
+import frc.robot.sim.SimWorld;
+import frc.robot.sim.VisualizationServer;
 
 /**
  * The methods in this class are called automatically corresponding to each mode, as described in
@@ -17,6 +21,12 @@ public class Robot extends TimedRobot {
   private Command m_autonomousCommand;
 
   private final RobotContainer m_robotContainer;
+
+  // Simulation components
+  private EKFLocalizer ekfLocalizer;
+  private OccupancyMapper mapper;
+  private SimWorld simWorld;
+  private VisualizationServer vizServer;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -93,9 +103,70 @@ public class Robot extends TimedRobot {
 
   /** This function is called once when the robot is first started up. */
   @Override
-  public void simulationInit() {}
+  public void simulationInit() {
+    try {
+      // Initialize simulation components
+      ekfLocalizer = new EKFLocalizer(60.0, 48.0, 0.0); // Start at center of room
+      mapper = new OccupancyMapper();
+      simWorld = new SimWorld();
+      vizServer = new VisualizationServer();
+      
+      // Configure visualization server
+      vizServer.setSimWorld(simWorld);
+      
+      // Start server and open browser
+      vizServer.start();
+      
+      System.out.println("Simulation initialized with 3D visualization");
+    } catch (Exception e) {
+      System.err.println("Failed to initialize simulation: " + e.getMessage());
+      e.printStackTrace();
+    }
+  }
 
   /** This function is called periodically whilst in simulation. */
   @Override
-  public void simulationPeriodic() {}
+  public void simulationPeriodic() {
+    if (ekfLocalizer == null || mapper == null || simWorld == null || vizServer == null) {
+      return;
+    }
+
+    try {
+      // 1. Read encoder values and gyro from drivetrain
+      var drivetrain = m_robotContainer.getDrivetrain();
+      double leftDistance = drivetrain.getLeftDistanceInch();
+      double rightDistance = drivetrain.getRightDistanceInch();
+      double gyroAngleZ = drivetrain.getGyroAngleZ();
+
+      // 2. Run EKF prediction (odometry) then update (gyro)
+      ekfLocalizer.predict(leftDistance, rightDistance);
+      ekfLocalizer.update(gyroAngleZ);
+
+      // 3. Get current pose from EKF
+      double robotX = ekfLocalizer.getX();
+      double robotY = ekfLocalizer.getY();
+      double robotTheta = ekfLocalizer.getTheta();
+
+      // 4. Simulate ultrasonic reading using current pose
+      double sensorOffset = 2.0; // inches
+      double simulatedRange = simWorld.simulateUltrasonicReading(robotX, robotY, robotTheta, sensorOffset);
+
+      // 5. Add map point if valid
+      mapper.addPoint(simulatedRange, robotX, robotY, robotTheta);
+
+      // 6. Check for drift correction
+      double[] correction = mapper.checkDriftCorrection(simulatedRange, robotX, robotY, robotTheta);
+      if (correction != null) {
+        ekfLocalizer.applyCorrection(correction[0], correction[1]);
+      }
+
+      // 7. Update visualization server with latest state
+      vizServer.updatePose(robotX, robotY, robotTheta);
+      vizServer.updateMap(mapper.getMapPoints());
+      vizServer.updateBeam(simulatedRange, robotX, robotY, robotTheta);
+
+    } catch (Exception e) {
+      System.err.println("Error in simulation periodic: " + e.getMessage());
+    }
+  }
 }

@@ -98,4 +98,20 @@ public class RobotContainer {
     return new ArcadeDrive(
         m_drivetrain, () -> -m_controller.getRawAxis(1), () -> -m_controller.getRawAxis(2));
   }
+
+  /**
+   * Gets the drivetrain subsystem for simulation access.
+   * @return The drivetrain subsystem
+   */
+  public Drivetrain getDrivetrain() {
+    return m_drivetrain;
+  }
+
+  /**
+   * Gets the ultrasonic subsystem for simulation access.
+   * @return The ultrasonic subsystem
+   */
+  public Ultrasonic getUltrasonic() {
+    return m_ultrasonic;
+  }
 }
