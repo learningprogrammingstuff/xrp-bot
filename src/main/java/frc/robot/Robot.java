@@ -4,9 +4,7 @@
 
 package frc.robot;
 
-import edu.wpi.first.math.util.Units;
 import edu.wpi.first.wpilibj.TimedRobot;
-import edu.wpi.first.wpilibj.simulation.AnalogInputSim;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.sim.EKFLocalizer;
@@ -29,7 +27,6 @@ public class Robot extends TimedRobot {
   private OccupancyMapper mapper;
   private SimWorld simWorld;
   private VisualizationServer vizServer;
-  private AnalogInputSim rangefinderSim;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -122,9 +119,6 @@ public class Robot extends TimedRobot {
 
       vizServer = new VisualizationServer();
       
-      // Create simulation handle for the rangefinder's analog input (channel 2)
-      rangefinderSim = new AnalogInputSim(2);
-      
       // Configure visualization server
       vizServer.setSimWorld(simWorld);
       vizServer.setMapper(mapper);
@@ -166,13 +160,6 @@ public class Robot extends TimedRobot {
       // 4. Simulate ultrasonic reading using current pose
       double sensorOffset = 2.0; // inches
       double simulatedRange = simWorld.simulateUltrasonicReading(robotX, robotY, robotTheta, sensorOffset);
-
-      // 4a. Write simulated range to the XRPRangefinder's underlying AnalogInput
-      //     so the sim UI and subsystem readings match the simulated world.
-      //     XRPRangefinder formula: distanceMeters = (voltage / 5.0) * 4.0
-      //     => voltage = distanceMeters * (5.0 / 4.0)
-      double distanceMeters = Units.inchesToMeters(simulatedRange);
-      rangefinderSim.setVoltage(distanceMeters * (5.0 / 4.0));
 
       // 5. Add map point if valid
       mapper.addPoint(simulatedRange, robotX, robotY, robotTheta);

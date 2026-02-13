@@ -284,8 +284,12 @@ public class SimWorld {
     double noise = random.nextGaussian() * MEASUREMENT_NOISE_STDDEV;
     double measurement = minDistance + noise;
 
-    // Clamp to valid range
-    return Math.max(MIN_RANGE, Math.min(measurement, MAX_RANGE));
+    // Clamp to valid range – but only on the low end; high range is preserved
+    if (measurement < MIN_RANGE) {
+      return MAX_RANGE;
+    }
+
+    return measurement;
   }
 
   /**
