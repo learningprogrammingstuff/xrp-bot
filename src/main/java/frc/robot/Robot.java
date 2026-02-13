@@ -174,6 +174,7 @@ public class Robot extends TimedRobot {
       vizServer.updatePose(robotX, robotY, robotTheta);
       vizServer.updateMap(mapper.getMapPoints());
       vizServer.updateBeam(simulatedRange, robotX, robotY, robotTheta);
+      vizServer.updateDistances(drivetrain.getAverageDistanceInch(), simulatedRange);
 
     } catch (Exception e) {
       System.err.println("Error in simulation periodic: " + e.getMessage());
