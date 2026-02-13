@@ -38,6 +38,14 @@ public class VisualizationServer {
   private volatile OccupancyMapper mapper;
   private volatile EKFLocalizer localizer;
 
+  // Rangefinder debug telemetry
+  private volatile int rfDebugRawCounts = 0;
+  private volatile double rfDebugVoltage = 0.0;
+  private volatile double rfDebugClampedMeters = 0.0;
+  private volatile double rfDebugRawMeters = 0.0;
+  private volatile double rfDebugFilteredMeters = 0.0;
+  private volatile boolean rfDebugValid = false;
+
   /**
    * Creates a new visualization server on the default port.
    */
@@ -146,6 +154,26 @@ public class VisualizationServer {
   }
 
   /**
+   * Updates the rangefinder debug telemetry displayed in the viewer overlay.
+   *
+   * @param rawCounts   Simulated 12-bit ADC raw counts for AnalogInput 2
+   * @param voltage     AnalogInput 2 voltage (0–5 V)
+   * @param clampedM    Clamped distance in meters (hardware-realistic, 0–4 m)
+   * @param rawM        Unclamped raycast distance in meters
+   * @param filteredM   Filtered clamped distance in meters (after median + outlier gate)
+   * @param valid       Whether the filter considers the reading valid
+   */
+  public void updateRangefinderDebug(int rawCounts, double voltage,
+      double clampedM, double rawM, double filteredM, boolean valid) {
+    this.rfDebugRawCounts = rawCounts;
+    this.rfDebugVoltage = voltage;
+    this.rfDebugClampedMeters = clampedM;
+    this.rfDebugRawMeters = rawM;
+    this.rfDebugFilteredMeters = filteredM;
+    this.rfDebugValid = valid;
+  }
+
+  /**
    * Handles the root endpoint - serves the HTML/JS visualization.
    */
   private void handleRoot(HttpExchange exchange) throws IOException {
@@ -231,6 +259,14 @@ public class VisualizationServer {
     json.append("  \"distances\": {\n");
     json.append("    \"total\": ").append(totalDistance).append(",\n");
     json.append("    \"ultrasonic\": ").append(ultrasonicRange).append("\n");
+    json.append("  },\n");
+    json.append("  \"rangefinderDebug\": {\n");
+    json.append("    \"rawCounts\": ").append(rfDebugRawCounts).append(",\n");
+    json.append("    \"voltage\": ").append(rfDebugVoltage).append(",\n");
+    json.append("    \"clampedMeters\": ").append(rfDebugClampedMeters).append(",\n");
+    json.append("    \"rawMeters\": ").append(rfDebugRawMeters).append(",\n");
+    json.append("    \"filteredMeters\": ").append(rfDebugFilteredMeters).append(",\n");
+    json.append("    \"valid\": ").append(rfDebugValid).append("\n");
     json.append("  }\n");
     json.append("}\n");
     
@@ -309,6 +345,14 @@ public class VisualizationServer {
     <div>Map Points: <span id="mapCount">0</span></div>
     <div>Distance Traveled: <span id="distTotal">0.00</span> in</div>
     <div>Ultrasonic Range: <span id="distUltra">0.00</span> in</div>
+    <hr style="border-color:#555;margin:8px 0">
+    <h3 style="margin:0 0 6px 0;font-size:14px;color:#ffcc00">Rangefinder Debug</h3>
+    <div>Raw Counts: <span id="rfCounts">0</span></div>
+    <div>Voltage: <span id="rfVoltage">0.000</span> V</div>
+    <div>Clamped: <span id="rfClamped">0.000</span> m</div>
+    <div>Raw (unclamped): <span id="rfRaw">0.000</span> m</div>
+    <div>Filtered: <span id="rfFiltered">0.000</span> m</div>
+    <div>Valid: <span id="rfValid" style="font-weight:bold">--</span></div>
     <button id="resetBtn" class="btn">Reset Map</button>
     <button id="setOriginBtn" class="btn">Set Origin (0,0)</button>
     <button id="centerBtn" class="btn">Center to Robot</button>
@@ -479,6 +523,19 @@ public class VisualizationServer {
         document.getElementById('mapCount').textContent = data.mapPoints.length;
         document.getElementById('distTotal').textContent = distances.total.toFixed(2);
         document.getElementById('distUltra').textContent = distances.ultrasonic.toFixed(2);
+
+        // Update rangefinder debug panel
+        const rf = data.rangefinderDebug;
+        if (rf) {
+          document.getElementById('rfCounts').textContent = rf.rawCounts;
+          document.getElementById('rfVoltage').textContent = rf.voltage.toFixed(3);
+          document.getElementById('rfClamped').textContent = rf.clampedMeters.toFixed(3);
+          document.getElementById('rfRaw').textContent = rf.rawMeters.toFixed(3);
+          document.getElementById('rfFiltered').textContent = rf.filteredMeters.toFixed(3);
+          const validEl = document.getElementById('rfValid');
+          validEl.textContent = rf.valid ? 'YES' : 'NO';
+          validEl.style.color = rf.valid ? '#00ff88' : '#ff4444';
+        }
       } catch (error) {
         console.error('Error fetching state:', error);
       }
