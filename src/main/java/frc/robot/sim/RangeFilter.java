@@ -7,7 +7,7 @@ package frc.robot.sim;
 import java.util.Arrays;
 
 /**
- * Filters ultrasonic range measurements to reject spikes and outliers.
+ * Filters rangefinder distance measurements to reject spikes and outliers.
  *
  * <p>Applies a 5-sample median filter followed by an outlier rejection gate.
  * The filter is deterministic and suitable for real-time use at 50 Hz (20 ms cycle).

@@ -211,11 +211,11 @@ public class Robot extends TimedRobot {
 
       // 4d. SimUI parity check: compare AnalogInput-derived distance to subsystem
       double aiDerivedMeters = (voltage / XRP_FULL_SCALE_VOLTAGE) * XRP_MAX_RANGE_M;
-      if (Math.abs(aiDerivedMeters - subsystemMeters) > PARITY_TOLERANCE_M) {
+      double parityDelta = Math.abs(aiDerivedMeters - subsystemMeters);
+      if (parityDelta > PARITY_TOLERANCE_M) {
         System.err.printf("[Cycle %d] PARITY MISMATCH: AI-derived=%.4f m, "
             + "subsystem=%.4f m, delta=%.4f m%n",
-            simCycleCount, aiDerivedMeters, subsystemMeters,
-            Math.abs(aiDerivedMeters - subsystemMeters));
+            simCycleCount, aiDerivedMeters, subsystemMeters, parityDelta);
       }
 
       // 4e. Apply range filter to the clamped distance for mapping/visualization
@@ -224,9 +224,9 @@ public class Robot extends TimedRobot {
       boolean validReading = rangeFilter.hasValidMeasurement();
 
       // 4f. Debug output: log all values every 50 cycles (~1 second)
+      // AnalogInput raw counts: 12-bit ADC over 0–5V → counts = voltage * 4095 / 5.0
+      int rawCounts = (int) Math.round(voltage * 4095.0 / XRP_FULL_SCALE_VOLTAGE);
       if (simCycleCount % 50 == 1) {
-        // AnalogInput raw counts: 12-bit ADC over 0–5V → counts = voltage * 4095 / 5.0
-        int rawCounts = (int) Math.round(voltage * 4095.0 / XRP_FULL_SCALE_VOLTAGE);
         System.out.printf("[Cycle %d] AI2: counts=%d voltage=%.3fV | "
             + "clamped=%.3fm raw=%.3fm filtered=%.3fm | valid=%b%n",
             simCycleCount, rawCounts, voltage,
@@ -249,7 +249,7 @@ public class Robot extends TimedRobot {
       vizServer.updateBeam(filteredInches, robotX, robotY, robotTheta);
       vizServer.updateDistances(drivetrain.getAverageDistanceInch(), filteredInches);
       vizServer.updateRangefinderDebug(
-          (int) Math.round(voltage * 4095.0 / XRP_FULL_SCALE_VOLTAGE), // raw counts
+          rawCounts,             // raw counts
           voltage,               // voltage
           clampedMeters,         // clamped meters
           rawRangeMeters,        // raw/unclamped meters
