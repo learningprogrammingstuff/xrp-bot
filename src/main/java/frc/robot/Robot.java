@@ -11,6 +11,7 @@ import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.sim.EKFLocalizer;
 import frc.robot.sim.OccupancyMapper;
+import frc.robot.sim.RangeFilter;
 import frc.robot.sim.SimWorld;
 import frc.robot.sim.VisualizationServer;
 
@@ -30,6 +31,26 @@ public class Robot extends TimedRobot {
   private SimWorld simWorld;
   private VisualizationServer vizServer;
   private AnalogInputSim rangefinderSim;
+  private RangeFilter rangeFilter;
+
+  /**
+   * XRP rangefinder maximum distance (meters). The hardware sensor saturates at
+   * 4.0 m; voltages above the corresponding level are clamped.
+   */
+  private static final double XRP_MAX_RANGE_M = 4.0;
+
+  /**
+   * XRP rangefinder AnalogInput full-scale voltage. The sensor maps 0–5 V to
+   * the full distance range.
+   */
+  private static final double XRP_FULL_SCALE_VOLTAGE = 5.0;
+
+  /** Parity tolerance: maximum acceptable difference between AnalogInput-derived
+   *  and subsystem-reported distance before logging a warning (meters). */
+  private static final double PARITY_TOLERANCE_M = 0.01;
+
+  /** Simulation cycle counter for debug logging. */
+  private long simCycleCount;
 
   /**
    * This function is run when the robot is first started up and should be used for any
@@ -124,7 +145,11 @@ public class Robot extends TimedRobot {
       
       // Create simulation handle for the rangefinder's analog input (channel 2)
       rangefinderSim = new AnalogInputSim(2);
-      
+
+      // Range filter: 5-sample median + outlier rejection
+      rangeFilter = new RangeFilter();
+      simCycleCount = 0;
+
       // Configure visualization server
       vizServer.setSimWorld(simWorld);
       vizServer.setMapper(mapper);
@@ -148,6 +173,8 @@ public class Robot extends TimedRobot {
     }
 
     try {
+      simCycleCount++;
+
       // 1. Read encoder values and gyro from drivetrain
       var drivetrain = m_robotContainer.getDrivetrain();
       double leftDistance = drivetrain.getLeftDistanceInch();
@@ -163,22 +190,55 @@ public class Robot extends TimedRobot {
       double robotY = ekfLocalizer.getY();
       double robotTheta = ekfLocalizer.getTheta();
 
-      // 4. Simulate ultrasonic reading using current pose
+      // 4. Simulate ultrasonic reading using current pose (inches, unclamped)
       double sensorOffset = 2.0; // inches
-      double simulatedRange = simWorld.simulateUltrasonicReading(robotX, robotY, robotTheta, sensorOffset);
+      double simulatedRangeInches = simWorld.simulateUltrasonicReading(
+          robotX, robotY, robotTheta, sensorOffset);
 
-      // 4a. Write simulated range to the XRPRangefinder's underlying AnalogInput
-      //     so the sim UI and subsystem readings match the simulated world.
+      // 4a. Convert to meters (unclamped raycast distance for mapping)
+      double rawRangeMeters = Units.inchesToMeters(simulatedRangeInches);
+
+      // 4b. Clamp to XRP hardware range (0–4 m) and compute the AnalogInput voltage.
       //     XRPRangefinder formula: distanceMeters = (voltage / 5.0) * 4.0
-      //     => voltage = distanceMeters * (5.0 / 4.0)
-      double distanceMeters = Units.inchesToMeters(simulatedRange);
-      rangefinderSim.setVoltage(distanceMeters * (5.0 / 4.0));
+      //     Inverse:                voltage         = distanceMeters * (5.0 / 4.0)
+      double clampedMeters = Math.min(rawRangeMeters, XRP_MAX_RANGE_M);
+      double voltage = clampedMeters * (XRP_FULL_SCALE_VOLTAGE / XRP_MAX_RANGE_M);
+      voltage = Math.max(0.0, Math.min(XRP_FULL_SCALE_VOLTAGE, voltage));
+      rangefinderSim.setVoltage(voltage);
 
-      // 5. Add map point if valid
-      mapper.addPoint(simulatedRange, robotX, robotY, robotTheta);
+      // 4c. Read back through the subsystem (same path SimUI uses)
+      double subsystemMeters = m_robotContainer.getUltrasonic().getDistanceMeters();
+
+      // 4d. SimUI parity check: compare AnalogInput-derived distance to subsystem
+      double aiDerivedMeters = (voltage / XRP_FULL_SCALE_VOLTAGE) * XRP_MAX_RANGE_M;
+      double parityDelta = Math.abs(aiDerivedMeters - subsystemMeters);
+      if (parityDelta > PARITY_TOLERANCE_M) {
+        System.err.printf("[Cycle %d] PARITY MISMATCH: AI-derived=%.4f m, "
+            + "subsystem=%.4f m, delta=%.4f m%n",
+            simCycleCount, aiDerivedMeters, subsystemMeters, parityDelta);
+      }
+
+      // 4e. Apply range filter to the clamped distance for mapping/visualization
+      double filteredMeters = rangeFilter.filter(clampedMeters);
+      double filteredInches = Units.metersToInches(filteredMeters);
+      boolean validReading = rangeFilter.hasValidMeasurement();
+
+      // 4f. Debug output: log all values every 50 cycles (~1 second)
+      // AnalogInput raw counts: 12-bit ADC over 0–5V → counts = voltage * 4095 / 5.0
+      int rawCounts = (int) Math.round(voltage * 4095.0 / XRP_FULL_SCALE_VOLTAGE);
+      if (simCycleCount % 50 == 1) {
+        System.out.printf("[Cycle %d] AI2: counts=%d voltage=%.3fV | "
+            + "clamped=%.3fm raw=%.3fm filtered=%.3fm | valid=%b%n",
+            simCycleCount, rawCounts, voltage,
+            clampedMeters, rawRangeMeters, filteredMeters, validReading);
+      }
+
+      // 5. Add map point using FILTERED + CLAMPED range (inches)
+      mapper.addPoint(filteredInches, robotX, robotY, robotTheta);
 
       // 6. Check for drift correction
-      double[] correction = mapper.checkDriftCorrection(simulatedRange, robotX, robotY, robotTheta);
+      double[] correction = mapper.checkDriftCorrection(
+          filteredInches, robotX, robotY, robotTheta);
       if (correction != null) {
         ekfLocalizer.applyCorrection(correction[0], correction[1]);
       }
@@ -186,8 +246,16 @@ public class Robot extends TimedRobot {
       // 7. Update visualization server with latest state
       vizServer.updatePose(robotX, robotY, robotTheta);
       vizServer.updateMap(mapper.getMapPoints());
-      vizServer.updateBeam(simulatedRange, robotX, robotY, robotTheta);
-      vizServer.updateDistances(drivetrain.getAverageDistanceInch(), simulatedRange);
+      vizServer.updateBeam(filteredInches, robotX, robotY, robotTheta);
+      vizServer.updateDistances(drivetrain.getAverageDistanceInch(), filteredInches);
+      vizServer.updateRangefinderDebug(
+          rawCounts,             // raw counts
+          voltage,               // voltage
+          clampedMeters,         // clamped meters
+          rawRangeMeters,        // raw/unclamped meters
+          filteredMeters,        // filtered meters
+          validReading           // valid flag
+      );
 
     } catch (Exception e) {
       System.err.println("Error in simulation periodic: " + e.getMessage());
