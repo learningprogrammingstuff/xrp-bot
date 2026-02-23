@@ -5,8 +5,10 @@
 package frc.robot;
 
 import edu.wpi.first.math.util.Units;
+import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.TimedRobot;
 import edu.wpi.first.wpilibj.simulation.AnalogInputSim;
+import edu.wpi.first.wpilibj.xrp.XRPMotor;
 import edu.wpi.first.wpilibj2.command.Command;
 import edu.wpi.first.wpilibj2.command.CommandScheduler;
 import frc.robot.sim.EKFLocalizer;
@@ -14,6 +16,7 @@ import frc.robot.sim.OccupancyMapper;
 import frc.robot.sim.RangeFilter;
 import frc.robot.sim.SimWorld;
 import frc.robot.sim.VisualizationServer;
+import edu.wpi.first.wpilibj.xrp.XRPMotor;
 
 /**
  * The methods in this class are called automatically corresponding to each mode, as described in
@@ -22,8 +25,10 @@ import frc.robot.sim.VisualizationServer;
  */
 public class Robot extends TimedRobot {
   private Command m_autonomousCommand;
-
+  private final XRPMotor motor4 = new XRPMotor(3);
+  private final Joystick controller = new Joystick(0); 
   private final RobotContainer m_robotContainer;
+
 
   // Simulation components
   private EKFLocalizer ekfLocalizer;
@@ -113,7 +118,15 @@ public class Robot extends TimedRobot {
 
   /** This function is called periodically during operator control. */
   @Override
-  public void teleopPeriodic() {}
+  public void teleopPeriodic() {
+    double axisValue = controller.getRawAxis(5);
+
+        // Optional: apply a small deadband to prevent motor creep when axis is near zero
+        if (Math.abs(axisValue) < 0.05) {
+            axisValue = 0.0;
+        }
+        motor4.set(axisValue);
+  }
 
   @Override
   public void testInit() {
