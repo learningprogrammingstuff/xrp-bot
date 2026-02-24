@@ -1,0 +1,65 @@
+{
+  "type": "differential",
+  "mass": {
+    "value": 0.5,
+    "unit": "KG"
+  },
+  "MOI": {
+    "value": 0.005,
+    "unit": "KG*M^2"
+  },
+  "robotTrackWidth": {
+    "value": 0.155,
+    "unit": "Meters"
+  },
+  "wheelRadius": {
+    "value": 0.03,
+    "unit": "Meters"
+  },
+  "gearing": 48.75,
+  "maxDriveSpeed": 0.5,
+  "wheelCOF": 0.7,
+  "driveMotor": {
+    "freeSpeed": {
+      "value": 200,
+      "unit": "RPM"
+    },
+    "stallTorque": {
+      "value": 0.1,
+      "unit": "N*M"
+    },
+    "stallCurrent": {
+      "value": 1.0,
+      "unit": "Amps"
+    },
+    "freeCurrent": {
+      "value": 0.1,
+      "unit": "Amps"
+    },
+    "quantity": 2
+  },
+  "bumperSize": {
+    "x": {
+      "value": 0.16,
+      "unit": "Meters"
+    },
+    "y": {
+      "value": 0.16,
+      "unit": "Meters"
+    }
+  },
+  "bumperOffset": {
+    "x": {
+      "value": 0.0,
+      "unit": "Meters"
+    },
+    "y": {
+      "value": 0.0,
+      "unit": "Meters"
+    }
+  },
+  "defaultMaxVel": 0.5,
+  "defaultMaxAccel": 0.5,
+  "defaultMaxAngVel": 180.0,
+  "defaultMaxAngAccel": 180.0
+}
