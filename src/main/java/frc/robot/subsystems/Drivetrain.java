@@ -31,6 +31,7 @@ public class Drivetrain extends SubsystemBase {
   private static final double kWheelDiameterInch = 2.3622; // 60 mm
   private static final double kWheelDiameterMeter = kWheelDiameterInch * 0.0254; // Convert to meters
   private static final double kTrackWidthMeter = 0.155; // XRP track width ~155 mm
+  private static final double kMaxSpeedMetersPerSecond = 0.5; // XRP max speed ~0.5 m/s
 
   // The XRP has the left and right motors set to
   // channels 0 and 1 respectively
@@ -114,11 +115,9 @@ public class Drivetrain extends SubsystemBase {
   /** Drive the robot using robot-relative ChassisSpeeds (used by PathPlanner). */
   public void driveRobotRelative(ChassisSpeeds speeds) {
     DifferentialDriveWheelSpeeds wheelSpeeds = m_kinematics.toWheelSpeeds(speeds);
-    // Normalize wheel speeds to [-1, 1] range using a max speed estimate
-    // XRP max speed is approximately 0.5 m/s
-    double maxSpeed = 0.5;
-    double leftOutput = wheelSpeeds.leftMetersPerSecond / maxSpeed;
-    double rightOutput = wheelSpeeds.rightMetersPerSecond / maxSpeed;
+    // Normalize wheel speeds to [-1, 1] range
+    double leftOutput = wheelSpeeds.leftMetersPerSecond / kMaxSpeedMetersPerSecond;
+    double rightOutput = wheelSpeeds.rightMetersPerSecond / kMaxSpeedMetersPerSecond;
     // Clamp to [-1, 1]
     leftOutput = Math.max(-1.0, Math.min(1.0, leftOutput));
     rightOutput = Math.max(-1.0, Math.min(1.0, rightOutput));
