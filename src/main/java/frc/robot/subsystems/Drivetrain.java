@@ -5,6 +5,7 @@
 package frc.robot.subsystems;
 
 import com.pathplanner.lib.auto.AutoBuilder;
+import com.pathplanner.lib.config.ModuleConfig;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPLTVController;
 
@@ -14,6 +15,7 @@ import edu.wpi.first.math.kinematics.ChassisSpeeds;
 import edu.wpi.first.math.kinematics.DifferentialDriveKinematics;
 import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
 import edu.wpi.first.math.kinematics.DifferentialDriveWheelSpeeds;
+import edu.wpi.first.math.system.plant.DCMotor;
 import edu.wpi.first.util.sendable.SendableRegistry;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -81,7 +83,33 @@ public class Drivetrain extends SubsystemBase {
 
     RobotConfig config = null;
     try {
-      config = RobotConfig.fromGUISettings();
+      // Construct RobotConfig manually because the XRP uses custom motors
+      // that are not standard FRC motors supported by RobotConfig.fromGUISettings().
+      // Motor specs sourced from pathplanner/settings.json (XRP onboard motors).
+      DCMotor xrpMotor = new DCMotor(
+          12.0,                             // nominal voltage (V)
+          0.1,                              // stall torque (N*m)
+          1.0,                              // stall current (A)
+          0.1,                              // free current (A)
+          200.0 * 2.0 * Math.PI / 60.0,    // free speed: 200 RPM in rad/s
+          2                                 // number of motors
+      );
+
+      ModuleConfig moduleConfig = new ModuleConfig(
+          kWheelDiameterMeter / 2.0,          // wheel radius (m)
+          kMaxSpeedMetersPerSecond,            // max drive velocity (m/s)
+          0.7,                                 // wheel COF
+          xrpMotor.withReduction(kGearRatio),  // motor with gear reduction
+          1.0,                                 // drive current limit (A)
+          2                                    // number of motors
+      );
+
+      config = new RobotConfig(
+          0.5,              // mass (kg)
+          0.005,            // MOI (kg*m^2)
+          moduleConfig,
+          kTrackWidthMeter  // trackwidth for differential drive
+      );
     } catch (Exception e) {
       e.printStackTrace();
     }
