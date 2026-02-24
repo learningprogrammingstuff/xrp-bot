@@ -5,14 +5,11 @@
 package frc.robot;
 
 import com.pathplanner.lib.auto.AutoBuilder;
-import com.pathplanner.lib.commands.PathPlannerAuto;
 
 import edu.wpi.first.wpilibj.GenericHID;
 import edu.wpi.first.wpilibj.Joystick;
 import edu.wpi.first.wpilibj.XboxController;
 import frc.robot.commands.ArcadeDrive;
-import frc.robot.commands.AutonomousDistance;
-import frc.robot.commands.AutonomousTime;
 import frc.robot.subsystems.Arm;
 import frc.robot.subsystems.Drivetrain;
 import edu.wpi.first.wpilibj.smartdashboard.SendableChooser;
@@ -33,7 +30,6 @@ import frc.robot.subsystems.Ultrasonic;
  * subsystems, commands, and button mappings) should be declared here.
  */
 public class RobotContainer {
-  private SendableChooser<Command> autoChooser;
   // The robot's subsystems and commands are defined here...
   private final Drivetrain m_drivetrain = new Drivetrain();
   private final XRPOnBoardIO m_onboardIO = new XRPOnBoardIO();
@@ -42,28 +38,18 @@ public class RobotContainer {
   // Assumes a gamepad plugged into channel 0
   private final Joystick m_controller = new Joystick(0);
 
-  // Create SmartDashboard chooser for autonomous routines
-  private final SendableChooser<Command> m_chooser = new SendableChooser<>();
+  // PathPlanner auto chooser for autonomous routines
+  private final SendableChooser<Command> m_autoChooser;
 
   /** The container for the robot. Contains subsystems, OI devices, and commands. */
   public RobotContainer() {
     // Configure the button bindings
     configureButtonBindings();
-    autoChooser = AutoBuilder.buildAutoChooser();
-    boolean isCompetition = true;
 
-    // Build an auto chooser. This will use Commands.none() as the default option.
-    // As an example, this will only show autos that start with "comp" while at
-    // competition as defined by the programmer
-    autoChooser = AutoBuilder.buildAutoChooserWithOptionsModifier(
-      (stream) -> isCompetition
-        ? stream.filter(auto -> auto.getName().startsWith("comp"))
-        : stream
-    );
-
-    SmartDashboard.putData("Auto Chooser", autoChooser);
-
-
+    // Build the PathPlanner auto chooser from deployed path files.
+    // This will use Commands.none() as the default option.
+    m_autoChooser = AutoBuilder.buildAutoChooser();
+    SmartDashboard.putData("Auto Chooser", m_autoChooser);
   }
 
   /**
@@ -92,11 +78,6 @@ public class RobotContainer {
     joystickBButton
         .onTrue(new InstantCommand(() -> m_arm.setAngle(90.0), m_arm))
         .onFalse(new InstantCommand(() -> m_arm.setAngle(0.0), m_arm));
-
-    // Setup SmartDashboard options
-    m_chooser.setDefaultOption("Auto Routine Distance", new AutonomousDistance(m_drivetrain, m_ultrasonic.getRangefinder()));
-    m_chooser.addOption("Auto Routine Time", new AutonomousTime(m_drivetrain));
-    SmartDashboard.putData(m_chooser);
   }
 
   /**
@@ -105,9 +86,7 @@ public class RobotContainer {
    * @return the command to run in autonomous
    */
   public Command getAutonomousCommand() {
-    return m_chooser.getSelected();
-    return autoChooser.getSelected();
-    return new PathPlannerAuto("Example Auto");
+    return m_autoChooser.getSelected();
   }
 
   /**

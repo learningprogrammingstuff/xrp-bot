@@ -8,6 +8,12 @@ import com.pathplanner.lib.auto.AutoBuilder;
 import com.pathplanner.lib.config.RobotConfig;
 import com.pathplanner.lib.controllers.PPLTVController;
 
+import edu.wpi.first.math.geometry.Pose2d;
+import edu.wpi.first.math.geometry.Rotation2d;
+import edu.wpi.first.math.kinematics.ChassisSpeeds;
+import edu.wpi.first.math.kinematics.DifferentialDriveKinematics;
+import edu.wpi.first.math.kinematics.DifferentialDriveOdometry;
+import edu.wpi.first.math.kinematics.DifferentialDriveWheelSpeeds;
 import edu.wpi.first.util.sendable.SendableRegistry;
 import edu.wpi.first.wpilibj.BuiltInAccelerometer;
 import edu.wpi.first.wpilibj.DriverStation;
@@ -23,6 +29,9 @@ public class Drivetrain extends SubsystemBase {
   private static final double kCountsPerMotorShaftRev = 12.0;
   private static final double kCountsPerRevolution = kCountsPerMotorShaftRev * kGearRatio; // 585.0
   private static final double kWheelDiameterInch = 2.3622; // 60 mm
+  private static final double kWheelDiameterMeter = kWheelDiameterInch * 0.0254; // Convert to meters
+  private static final double kTrackWidthMeter = 0.155; // XRP track width ~155 mm
+  private static final double kMaxSpeedMetersPerSecond = 0.5; // XRP max speed ~0.5 m/s
 
   // The XRP has the left and right motors set to
   // channels 0 and 1 respectively
@@ -44,6 +53,11 @@ public class Drivetrain extends SubsystemBase {
   // Set up the BuiltInAccelerometer
   private final BuiltInAccelerometer m_accelerometer = new BuiltInAccelerometer();
 
+  // Kinematics and odometry for PathPlanner
+  private final DifferentialDriveKinematics m_kinematics =
+      new DifferentialDriveKinematics(kTrackWidthMeter);
+  private final DifferentialDriveOdometry m_odometry;
+
   /** Creates a new Drivetrain. */
   public Drivetrain() {
     SendableRegistry.addChild(m_diffDrive, m_leftMotor);
@@ -54,44 +68,84 @@ public class Drivetrain extends SubsystemBase {
     // gearbox is constructed, you might have to invert the left side instead.
     m_rightMotor.setInverted(true);
 
-    // Use inches as unit for encoder distances
-    m_leftEncoder.setDistancePerPulse((Math.PI * kWheelDiameterInch) / kCountsPerRevolution);
-    m_rightEncoder.setDistancePerPulse((Math.PI * kWheelDiameterInch) / kCountsPerRevolution);
+    // Use meters as unit for encoder distances (PathPlanner requires meters)
+    m_leftEncoder.setDistancePerPulse((Math.PI * kWheelDiameterMeter) / kCountsPerRevolution);
+    m_rightEncoder.setDistancePerPulse((Math.PI * kWheelDiameterMeter) / kCountsPerRevolution);
     resetEncoders();
-    RobotConfig config;
-    try{
+
+    // Initialize odometry at the origin
+    m_odometry = new DifferentialDriveOdometry(
+        Rotation2d.fromDegrees(getGyroAngleZ()),
+        m_leftEncoder.getDistance(),
+        m_rightEncoder.getDistance());
+
+    RobotConfig config = null;
+    try {
       config = RobotConfig.fromGUISettings();
     } catch (Exception e) {
-      // Handle exception as needed
       e.printStackTrace();
     }
-    
-    AutoBuilder.configure(
-            this::getPose, // Robot pose supplier
-            this::resetPose, // Method to reset odometry (will be called if your auto has a starting pose)
-            this::getRobotRelativeSpeeds, // ChassisSpeeds supplier. MUST BE ROBOT RELATIVE
-            (speeds, feedforwards) -> driveRobotRelative(speeds), // Method that will drive the robot given ROBOT RELATIVE ChassisSpeeds. Also optionally outputs individual module feedforwards
-            new PPLTVController(0.02), // PPLTVController is the built in path following controller for differential drive trains
-            config, // The robot configuration
-            () -> {
-              // Boolean supplier that controls when the path will be mirrored for the red alliance
-              // This will flip the path being followed to the red side of the field.
-              // THE ORIGIN WILL REMAIN ON THE BLUE SIDE
 
-              var alliance = DriverStation.getAlliance();
-              if (alliance.isPresent()) {
-                return alliance.get() == DriverStation.Alliance.Red;
-              }
-              return false;
-            },
-            this // Reference to this subsystem to set requirements
-    );
-
+    // Only configure AutoBuilder if config loaded successfully
+    if (config != null) {
+      AutoBuilder.configure(
+              this::getPose,
+              this::resetPose,
+              this::getRobotRelativeSpeeds,
+              (speeds, feedforwards) -> driveRobotRelative(speeds),
+              new PPLTVController(0.02),
+              config,
+              () -> {
+                var alliance = DriverStation.getAlliance();
+                if (alliance.isPresent()) {
+                  return alliance.get() == DriverStation.Alliance.Red;
+                }
+                return false;
+              },
+              this
+      );
+    }
   }
   
 
   public void arcadeDrive(double xaxisSpeed, double zaxisRotate) {
     m_diffDrive.arcadeDrive(xaxisSpeed, zaxisRotate);
+  }
+
+  /** Drive the robot using robot-relative ChassisSpeeds (used by PathPlanner). */
+  public void driveRobotRelative(ChassisSpeeds speeds) {
+    DifferentialDriveWheelSpeeds wheelSpeeds = m_kinematics.toWheelSpeeds(speeds);
+    // Normalize wheel speeds to [-1, 1] range
+    double leftOutput = wheelSpeeds.leftMetersPerSecond / kMaxSpeedMetersPerSecond;
+    double rightOutput = wheelSpeeds.rightMetersPerSecond / kMaxSpeedMetersPerSecond;
+    // Clamp to [-1, 1]
+    leftOutput = Math.max(-1.0, Math.min(1.0, leftOutput));
+    rightOutput = Math.max(-1.0, Math.min(1.0, rightOutput));
+    m_leftMotor.set(leftOutput);
+    m_rightMotor.set(rightOutput);
+  }
+
+  /** Get the current robot pose from odometry. */
+  public Pose2d getPose() {
+    return m_odometry.getPoseMeters();
+  }
+
+  /** Reset the odometry to a given pose. */
+  public void resetPose(Pose2d pose) {
+    resetEncoders();
+    m_odometry.resetPosition(
+        Rotation2d.fromDegrees(getGyroAngleZ()),
+        m_leftEncoder.getDistance(),
+        m_rightEncoder.getDistance(),
+        pose);
+  }
+
+  /** Get robot-relative ChassisSpeeds (used by PathPlanner). */
+  public ChassisSpeeds getRobotRelativeSpeeds() {
+    return m_kinematics.toChassisSpeeds(
+        new DifferentialDriveWheelSpeeds(
+            m_leftEncoder.getRate(),
+            m_rightEncoder.getRate()));
   }
 
   public void resetEncoders() {
@@ -108,11 +162,11 @@ public class Drivetrain extends SubsystemBase {
   }
 
   public double getLeftDistanceInch() {
-    return m_leftEncoder.getDistance();
+    return m_leftEncoder.getDistance() / 0.0254;
   }
 
   public double getRightDistanceInch() {
-    return m_rightEncoder.getDistance();
+    return m_rightEncoder.getDistance() / 0.0254;
   }
 
   public double getAverageDistanceInch() {
@@ -180,6 +234,10 @@ public class Drivetrain extends SubsystemBase {
 
   @Override
   public void periodic() {
-    // This method will be called once per scheduler run
+    // Update odometry each scheduler run
+    m_odometry.update(
+        Rotation2d.fromDegrees(getGyroAngleZ()),
+        m_leftEncoder.getDistance(),
+        m_rightEncoder.getDistance());
   }
 }
