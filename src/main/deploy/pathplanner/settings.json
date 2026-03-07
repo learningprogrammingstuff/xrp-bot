@@ -1,65 +1,34 @@
 {
-  "type": "differential",
-  "mass": {
-    "value": 0.5,
-    "unit": "KG"
-  },
-  "MOI": {
-    "value": 0.005,
-    "unit": "KG*M^2"
-  },
-  "robotTrackWidth": {
-    "value": 0.155,
-    "unit": "Meters"
-  },
-  "wheelRadius": {
-    "value": 0.03,
-    "unit": "Meters"
-  },
-  "gearing": 48.75,
-  "maxDriveSpeed": 0.5,
-  "wheelCOF": 0.7,
-  "driveMotor": {
-    "freeSpeed": {
-      "value": 200,
-      "unit": "RPM"
-    },
-    "stallTorque": {
-      "value": 0.1,
-      "unit": "N*M"
-    },
-    "stallCurrent": {
-      "value": 1.0,
-      "unit": "Amps"
-    },
-    "freeCurrent": {
-      "value": 0.1,
-      "unit": "Amps"
-    },
-    "quantity": 2
-  },
-  "bumperSize": {
-    "x": {
-      "value": 0.16,
-      "unit": "Meters"
-    },
-    "y": {
-      "value": 0.16,
-      "unit": "Meters"
-    }
-  },
-  "bumperOffset": {
-    "x": {
-      "value": 0.0,
-      "unit": "Meters"
-    },
-    "y": {
-      "value": 0.0,
-      "unit": "Meters"
-    }
-  },
+  "robotWidth": 0.1905,
+  "robotLength": 0.191,
+  "holonomicMode": false,
+  "pathFolders": [
+    "New Folder"
+  ],
+  "autoFolders": [],
   "defaultMaxVel": 0.5,
   "defaultMaxAccel": 0.5,
   "defaultMaxAngVel": 180.0,
-  "defaultMaxAngAccel": 180.0
+  "defaultMaxAngAccel": 360.0,
+  "defaultNominalVoltage": 6.0,
+  "robotMass": 0.4,
+  "robotMOI": 0.005,
+  "robotTrackwidth": 0.15875,
+  "driveWheelRadius": 0.03,
+  "driveGearing": 48.75,
+  "maxDriveSpeed": 0.5,
+  "driveMotorType": "CIM",
+  "driveCurrentLimit": 2.0,
+  "wheelCOF": 0.8,
+  "flModuleX": 0.273,
+  "flModuleY": 0.273,
+  "frModuleX": 0.273,
+  "frModuleY": -0.273,
+  "blModuleX": -0.273,
+  "blModuleY": 0.273,
+  "brModuleX": -0.273,
+  "brModuleY": -0.273,
+  "bumperOffsetX": 0.0,
+  "bumperOffsetY": 0.0,
+  "robotFeatures": []
 }
